@@ -61,7 +61,7 @@ pipeline {
     post {
         success {
             echo '✅ Pipeline termine avec succes'
-            mail to: 'ton-email@gmail.com',
+            mail to: 'fatoutogofatou@gmail.com',
                  subject: "✅ Jenkins - juice-shop-security BUILD #${env.BUILD_NUMBER} SUCCESS",
                  body: """
 Le build #${env.BUILD_NUMBER} du projet juice-shop-security s'est termine avec succes.
@@ -80,7 +80,7 @@ Rapports disponibles :
         }
         failure {
             echo '❌ Pipeline echoue'
-            mail to: 'ton-email@gmail.com',
+            mail to: 'fatoutogofatou@gmail.com',
                  subject: "❌ Jenkins - juice-shop-security BUILD #${env.BUILD_NUMBER} FAILED",
                  body: """
 Le build #${env.BUILD_NUMBER} du projet juice-shop-security a ECHOUE.
