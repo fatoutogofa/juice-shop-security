@@ -1,6 +1,10 @@
 pipeline {
     agent any
 
+    tools {
+        nodejs 'NodeJS-22'
+    }
+
     stages {
 
         stage('Checkout') {
@@ -12,12 +16,12 @@ pipeline {
 
         stage('Install Dependencies') {
             steps {
-                echo '=== Installation des dependances ==='
+                echo '=== Installation des dependances Node.js ==='
                 bat 'npm install --ignore-scripts'
             }
         }
 
-        stage('Scan - npm audit') {
+        stage('Scan 1 - npm audit') {
             steps {
                 echo '=== Scan des vulnerabilites des dependances ==='
                 bat 'npm audit --json > audit-report.json || exit 0'
@@ -30,39 +34,52 @@ pipeline {
             }
         }
 
-        stage('Scan - ESLint Code Analysis') {
+        stage('Scan 2 - Semgrep') {
             steps {
-                echo '=== Analyse statique du code source ==='
-                bat 'npx eslint *.ts lib models routes --format json > eslint-report.json || exit 0'
-                bat 'npx eslint *.ts lib models routes || exit 0'
+                echo '=== Analyse statique du code source avec Semgrep ==='
+                bat 'semgrep scan --config=auto --json --output=semgrep-report.json . || exit 0'
+                bat 'semgrep scan --config=auto . || exit 0'
             }
             post {
                 always {
-                    archiveArtifacts artifacts: 'eslint-report.json', allowEmptyArchive: true
+                    archiveArtifacts artifacts: 'semgrep-report.json', allowEmptyArchive: true
                 }
             }
         }
 
-        stage('Build') {
+        stage('Scan 3 - njsscan') {
             steps {
-                echo '=== Build du projet ==='
-                bat 'npm run build || exit 0'
+                echo '=== Scan de securite Node.js avec njsscan ==='
+                bat 'njsscan --json -o njsscan-report.json . || exit 0'
+                bat 'njsscan . || exit 0'
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'njsscan-report.json', allowEmptyArchive: true
+                }
             }
         }
 
-        stage('Tests Unitaires') {
+        stage('Scan 4 - Retire.js') {
             steps {
-                echo '=== Tests unitaires serveur ==='
-                bat 'npm run test:server || exit 0'
+                echo '=== Detection des librairies JavaScript vulnerables ==='
+                bat 'npx retire --path . --outputformat json --outputpath retire-report.json || exit 0'
+                bat 'npx retire --path . || exit 0'
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'retire-report.json', allowEmptyArchive: true
+                }
             }
         }
+
     }
 
     post {
         success {
-            echo '✅ Pipeline termine avec succes'
+            echo '=== Pipeline termine avec succes ==='
             mail to: 'fatoutogofatou@gmail.com',
-                 subject: "✅ Jenkins - juice-shop-security BUILD #${env.BUILD_NUMBER} SUCCESS",
+                 subject: "Jenkins - juice-shop-security BUILD #${env.BUILD_NUMBER} SUCCESS",
                  body: """
 Le build #${env.BUILD_NUMBER} du projet juice-shop-security s'est termine avec succes.
 
@@ -71,17 +88,19 @@ Build    : #${env.BUILD_NUMBER}
 Statut   : SUCCESS
 URL      : ${env.BUILD_URL}
 
-Rapports disponibles :
-- audit-report.json  : vulnerabilites npm
-- eslint-report.json : analyse du code
+Rapports generes :
+- audit-report.json    : vulnerabilites npm audit
+- semgrep-report.json  : analyse statique Semgrep
+- njsscan-report.json  : scan securite Node.js
+- retire-report.json   : librairies JS vulnerables
 
 -- Jenkins CI/CD
                  """
         }
         failure {
-            echo '❌ Pipeline echoue'
+            echo '=== Pipeline echoue ==='
             mail to: 'fatoutogofatou@gmail.com',
-                 subject: "❌ Jenkins - juice-shop-security BUILD #${env.BUILD_NUMBER} FAILED",
+                 subject: "Jenkins - juice-shop-security BUILD #${env.BUILD_NUMBER} FAILED",
                  body: """
 Le build #${env.BUILD_NUMBER} du projet juice-shop-security a ECHOUE.
 
@@ -90,7 +109,7 @@ Build    : #${env.BUILD_NUMBER}
 Statut   : FAILED
 URL      : ${env.BUILD_URL}
 
-Consultez les logs pour plus de details.
+Consultez les logs pour plus de details : ${env.BUILD_URL}console
 
 -- Jenkins CI/CD
                  """
